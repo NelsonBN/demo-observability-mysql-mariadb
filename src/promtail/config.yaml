@@ -1,0 +1,48 @@
+server:
+  http_listen_port: 9080
+  grpc_listen_port: 9081
+
+positions:
+  filename: /mnt/config/positions.yaml
+  sync_period: 10s
+
+clients:
+  - url: http://demo-loki:3100/loki/api/v1/push
+
+
+scrape_configs:
+
+  - job_name: 'MySQL'
+    static_configs:
+      - labels:
+          serviceType: 'Database'
+          serviceName: 'MySQL.DB'
+          __path__: /var/demo-logs/mysql/*log
+    pipeline_stages:
+      - regex:
+          expression: '(?P<timestamp>.+) (?P<thread>[\d]+) \[(?P<logLevel>.+?)\]( \[(?P<errorCode>.+?)\] \[(?P<subSystem>.+?)\])? (?P<msg>.+)'
+      - labels:
+          logLevel:
+          errorCode:
+          subSystem:
+      - drop:
+          expression: "^ *$"
+          drop_counter_reason: "drop empty lines"
+
+  - job_name: 'MariaDB'
+    static_configs:
+      - labels:
+          serviceType: 'Database'
+          serviceName: 'MariaDB.DB'
+          __path__: /var/demo-logs/mariadb/*log
+    pipeline_stages:
+      - regex:
+          expression: '(?P<timestamp>.+) (?P<thread>[\d]+) \[(?P<logLevel>.+?)\]( \[(?P<errorCode>.+?)\] \[(?P<subSystem>.+?)\])? (?P<msg>.+)'
+      - labels:
+          logLevel:
+          errorCode:
+          subSystem:
+      - drop:
+          expression: "^ *$"
+          drop_counter_reason: "drop empty lines"
+

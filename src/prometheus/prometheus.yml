@@ -1,0 +1,19 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+scrape_configs:
+
+  - job_name: 'MySQL'
+    static_configs:
+    - targets: ['demo-mysqld-exporter:9104']
+      labels:
+        serviceType: 'Database'
+        serviceName: 'MySQL.DB'
+
+  - job_name: 'MariaDB'
+    static_configs:
+    - targets: ['demo-mariadb-exporter:9104']
+      labels:
+        serviceType: 'Database'
+        serviceName: 'MariaDB.DB'

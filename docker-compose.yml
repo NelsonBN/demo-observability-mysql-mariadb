@@ -1,0 +1,160 @@
+version: '3.9'
+
+
+networks:
+  demo-network:
+    name: demo-network
+    driver: bridge
+
+
+services:
+
+  grafana:
+    image: grafana/grafana:9.3.2
+    container_name: demo-grafana
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+    ports:
+      - 3000:3000
+    networks:
+      - demo-network
+    depends_on:
+      - prometheus
+      - loki
+
+
+  prometheus:
+    image: prom/prometheus:v2.41.0
+    container_name: demo-prometheus
+    volumes:
+      - ./src/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
+    ports:
+      - 9090:9090
+    networks:
+      - demo-network
+
+
+  loki:
+    image: grafana/loki:2.7.1
+    container_name: demo-loki
+    ports:
+      - 3100:3100
+    command:
+      - -config.file=/etc/loki/loki-config.yaml
+      - -print-config-stderr=true
+    volumes:
+      - "./src/loki:/etc/loki"
+    networks:
+      - demo-network
+
+
+  promtail:
+    image: grafana/promtail:2.7.1
+    container_name: demo-promtail
+    ports:
+      - 9080:9080
+    command:
+      - -config.file=/etc/promtail/config.yaml
+    volumes:
+      - "./src/promtail/config.yaml:/etc/promtail/config.yaml"
+      - "./data/mysql/logs:/var/demo-logs/mysql"
+      - "./data/mariadb/logs:/var/demo-logs/mariadb"
+    depends_on:
+      - loki
+    networks:
+      - demo-network
+
+
+  mysql:
+    image: mysql:8.0.32
+    container_name: demo-mysql
+    restart: always
+    command:
+      - --general-log=1
+      - --general-log-file=/var/log/mysql/general.log
+      - --slow-query-log=1
+      - --slow-query-log-file=/var/log/mysql/slow-queries.log
+      - --long-query-time=0.2
+      - --log-queries-not-using-indexes=1
+      - --log-error=/var/log/mysql/error.log
+      - --expire-logs-days=4
+    ports:
+      - 3306:3306
+    environment:
+      MYSQL_ROOT_PASSWORD: cc9944aaff
+      MYSQL_DATABASE: demo
+    volumes:
+      - ./data/mysql/logs:/var/log/mysql
+      - ./src/database/init.sql:/docker-entrypoint-initdb.d/init.sql
+    networks:
+      - demo-network
+
+  mysqld-exporter:
+    image: prom/mysqld-exporter:v0.14.0
+    container_name: demo-mysqld-exporter
+    ports:
+      - 9104:9104
+    environment:
+      DATA_SOURCE_NAME: metrics-exporter:aabbccdd123@(demo-mysql:3306)/
+    networks:
+      - demo-network
+    depends_on:
+      - mysql
+      - prometheus
+
+
+  mariadb:
+    image: mariadb:10.9.5
+    container_name: demo-mariadb
+    restart: always
+    command:
+      - --general-log=1
+      - --general-log-file=/var/log/mariadb/general.log
+      - --slow-query-log=1
+      - --slow-query-log-file=/var/log/mariadb/slow-queries.log
+      - --long-query-time=0.2
+      - --log-queries-not-using-indexes=1
+      - --log-error=/var/log/mariadb/error.log
+      - --expire-logs-days=4
+    ports:
+      - 55555:3306
+    environment:
+      MYSQL_ROOT_PASSWORD: cc9944aaff
+      MYSQL_DATABASE: demo
+    volumes:
+      - ./data/mariadb/logs:/var/log/mariadb
+      - ./src/database/init.sql:/docker-entrypoint-initdb.d/init.sql
+    networks:
+      - demo-network
+
+  mariadb-exporter:
+    image: prom/mysqld-exporter:v0.14.0
+    container_name: demo-mariadb-exporter
+    ports:
+      - 9105:9104
+    environment:
+      DATA_SOURCE_NAME: metrics-exporter:aabbccdd123@(demo-mariadb:3306)/
+    networks:
+      - demo-network
+    depends_on:
+      - mariadb
+      - prometheus
+
+
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: technobre/demo-observability-mysql-mariadb-api:latest
+    container_name: demo-api
+    environment:
+      - CONNECTIONSTRINGS__MYSQL=server=demo-mysql; Port=3306; database=demo; uid=root; password=cc9944aaff; pooling=true;
+      - CONNECTIONSTRINGS__MARIADB=server=demo-mariadb; Port=3306; database=demo; uid=root; password=cc9944aaff; pooling=true;
+    ports:
+      - "8080:80"
+    networks:
+      - demo-network
+    depends_on:
+      - mysql
+      - mariadb
