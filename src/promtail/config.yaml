@@ -19,15 +19,36 @@ scrape_configs:
           serviceName: 'MySQL.DB'
           __path__: /var/demo-logs/mysql/*log
     pipeline_stages:
-      - regex:
-          expression: '(?P<timestamp>.+) (?P<thread>[\d]+) \[(?P<logLevel>.+?)\]( \[(?P<errorCode>.+?)\] \[(?P<subSystem>.+?)\])? (?P<msg>.+)'
-      - labels:
-          logLevel:
-          errorCode:
-          subSystem:
-      - drop:
-          expression: "^ *$"
-          drop_counter_reason: "drop empty lines"
+      - match:
+          selector: '{filename=~".*error.log$"}'
+          stages:
+          - regex:
+              expression: '(?P<timestamp>.+) (?P<thread>[\d]+) \[(?P<logLevel>.+?)\]( \[(?P<errorCode>.+?)\] \[(?P<subSystem>.+?)\])? (?P<msg>.+)'
+          - labels:
+              logLevel:
+              errorCode:
+              subSystem:
+          - drop:
+              expression: "^ *$"
+              drop_counter_reason: "drop empty lines"
+      - match:
+          selector: '{filename=~".*slow-queries.log$"}'
+          stages:
+          # https://grafana.com/docs/loki/latest/clients/promtail/stages/static_labels/
+          - static_labels:
+              logLevel: Warning
+          - drop:
+              expression: "^ *$"
+              drop_counter_reason: "drop empty lines"
+      - match:
+          selector: '{filename=~".*general.log$"}'
+          stages:
+          - static_labels:
+              logLevel: Debug
+          - drop:
+              expression: "^ *$"
+              drop_counter_reason: "drop empty lines"
+
 
   - job_name: 'MariaDB'
     static_configs:
@@ -36,13 +57,32 @@ scrape_configs:
           serviceName: 'MariaDB.DB'
           __path__: /var/demo-logs/mariadb/*log
     pipeline_stages:
-      - regex:
-          expression: '(?P<timestamp>.+) (?P<thread>[\d]+) \[(?P<logLevel>.+?)\]( \[(?P<errorCode>.+?)\] \[(?P<subSystem>.+?)\])? (?P<msg>.+)'
-      - labels:
-          logLevel:
-          errorCode:
-          subSystem:
-      - drop:
-          expression: "^ *$"
-          drop_counter_reason: "drop empty lines"
-
+      - match:
+          selector: '{filename=~".*error.log$"}'
+          stages:
+          - regex:
+              expression: '(?P<timestamp>.+) (?P<thread>[\d]+) \[(?P<logLevel>.+?)\]( \[(?P<errorCode>.+?)\] \[(?P<subSystem>.+?)\])? (?P<msg>.+)'
+          - labels:
+              logLevel:
+              errorCode:
+              subSystem:
+          - drop:
+              expression: "^ *$"
+              drop_counter_reason: "drop empty lines"
+      - match:
+          selector: '{filename=~".*slow-queries.log$"}'
+          stages:
+          # https://grafana.com/docs/loki/latest/clients/promtail/stages/static_labels/
+          - static_labels:
+              logLevel: Warning
+          - drop:
+              expression: "^ *$"
+              drop_counter_reason: "drop empty lines"
+      - match:
+          selector: '{filename=~".*general.log$"}'
+          stages:
+          - static_labels:
+              logLevel: Debug
+          - drop:
+              expression: "^ *$"
+              drop_counter_reason: "drop empty lines"
